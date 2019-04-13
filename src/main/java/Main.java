@@ -1,52 +1,57 @@
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.File;
-import java.io.IOException;
-
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
+import org.json.JSONException;
+import java.io.*;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+//    private static String readAll(Reader rd) throws IOException {
+//        StringBuilder sb = new StringBuilder();
+//        int cp;
+//        while ((cp = rd.read()) != -1) {
+//            sb.append((char) cp);
+//        }
+//        return sb.toString();
+//    }
+//
+//    public static JSONObject readJsonFromUrl(String url) throws IOException, JSONException {
+//        InputStream is = new URL(url).openStream();
+//        try {
+//            BufferedReader rd = new BufferedReader(new InputStreamReader(is, Charset.forName("UTF-8")));
+//            String jsonText = readAll(rd);
+//            JSONObject json = new JSONObject(jsonText);
+//            return json;
+//        } finally {
+//            is.close();
+//        }
+//    }
+
+    public static void main(String[] args) throws IOException, JSONException {
+
+//        Open( "http://date.jsontest.com/", JSON );
         ObjectMapper objectMapper = new ObjectMapper();
-        Date now = new java.util.Date();
+        LocalDateTime now = LocalDateTime.now();
         String result = "";
         long minTime = Long.MAX_VALUE;
-        try {
-            Repo[] repo = objectMapper.readValue(new File("response.json"), Repo[].class);
 
-            for (int i = 0; i < repo.length; i++) {
-                try {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-mm-dd");
-                    Date secondDate = sdf.parse(repo[i].getPushed_at());
-                    long diff = Math.abs(secondDate.getTime() - now.getTime());
+        Repo[] repo;
+        repo = objectMapper.readValue(new File("response.json"), Repo[].class);
 
-                    if (diff < minTime) {
-                        result=repo[i].full_name;
-                        minTime = diff;
-                    }
-                } catch (ParseException e) {
-                    e.printStackTrace();
-                }
+        for (Repo value : repo) {
+            String secondDate = value.pushed_at;
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            LocalDateTime modificationDate = LocalDateTime.parse(secondDate, formatter);
+
+            Duration duration = Duration.between(now, modificationDate);
+
+            long diff = Math.abs(duration.getSeconds());
+            if (diff < minTime) {
+                result = value.full_name;
+                minTime = diff;
             }
-            System.out.println(result);
-        } catch (JsonParseException e) {
-            e.printStackTrace();
-        } catch (JsonMappingException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
         }
+        System.out.println("Last modified repo is: " + result);
+//        System.out.println(minTime);
     }
 }
