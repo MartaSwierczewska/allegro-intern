@@ -1,57 +1,67 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.json.JSONException;
-import java.io.*;
+import org.json.simple.JSONArray;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class Main {
-//    private static String readAll(Reader rd) throws IOException {
-//        StringBuilder sb = new StringBuilder();
-//        int cp;
-//        while ((cp = rd.read()) != -1) {
-//            sb.append((char) cp);
-//        }
-//        return sb.toString();
-//    }
-//
-//    public static JSONObject readJsonFromUrl(String url) throws IOException, JSONException {
-//        InputStream is = new URL(url).openStream();
-//        try {
-//            BufferedReader rd = new BufferedReader(new InputStreamReader(is, Charset.forName("UTF-8")));
-//            String jsonText = readAll(rd);
-//            JSONObject json = new JSONObject(jsonText);
-//            return json;
-//        } finally {
-//            is.close();
-//        }
-//    }
+    public static void main(String[] args) throws IOException {
+        URL url = new URL("https://api.github.com/users/allegro/repos?page=1&per_page=100");
+        String content = getAPIContent(url);
+        List<Repo> repos = JSONtoObjectList(content);
 
-    public static void main(String[] args) throws IOException, JSONException {
-
-//        Open( "http://date.jsontest.com/", JSON );
-        ObjectMapper objectMapper = new ObjectMapper();
         LocalDateTime now = LocalDateTime.now();
-        String result = "";
         long minTime = Long.MAX_VALUE;
+        String result = "";
 
-        Repo[] repo;
-        repo = objectMapper.readValue(new File("response.json"), Repo[].class);
-
-        for (Repo value : repo) {
-            String secondDate = value.pushed_at;
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
-            LocalDateTime modificationDate = LocalDateTime.parse(secondDate, formatter);
-
-            Duration duration = Duration.between(now, modificationDate);
-
-            long diff = Math.abs(duration.getSeconds());
-            if (diff < minTime) {
-                result = value.full_name;
+        for (Repo repo : repos) {
+            long diff = getDiff(repo, now);
+            if (diff<minTime) {
+                result = repo.full_name;
                 minTime = diff;
             }
         }
         System.out.println("Last modified repo is: " + result);
-//        System.out.println(minTime);
+    }
+
+    private static String getAPIContent(URL url) throws IOException {
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestMethod("GET");
+        con.connect();
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+        String inputLine;
+        StringBuilder content = new StringBuilder();
+        while ((inputLine = in.readLine()) != null) {
+            content.append(inputLine);
+        }
+        in.close();
+        con.disconnect();
+        return content.toString();
+    }
+
+    private static List<Repo> JSONtoObjectList(String content) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readValue( content, objectMapper.getTypeFactory().constructCollectionType(List.class, Repo.class));
+    }
+
+    private static LocalDateTime getRepoModDate(Repo repo){
+        String secondDate = repo.pushed_at;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        return LocalDateTime.parse(secondDate, formatter);
+    }
+
+    private static long getDiff(Repo repo, LocalDateTime now){
+        LocalDateTime modificationDate = getRepoModDate(repo);
+        Duration duration = Duration.between(now, modificationDate);
+        return Math.abs(duration.getSeconds());
     }
 }
