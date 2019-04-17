@@ -1,38 +1,33 @@
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.json.simple.JSONArray;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 
 public class Main {
+
+    private static final String ALLEGRO_REPOS_GITHUB_URL = "https://api.github.com/users/allegro/repos?page=1&per_page=100";
+
     public static void main(String[] args) throws IOException {
-        URL url = new URL("https://api.github.com/users/allegro/repos?page=1&per_page=100");
-        String content = getAPIContent(url);
-        List<Repo> repos = JSONtoObjectList(content);
+        String content = getContent();
+        List<Repo> repositories = convertContentToRepoList(content);
 
-        LocalDateTime now = LocalDateTime.now();
-        long minTime = Long.MAX_VALUE;
-        String result = "";
-
-        for (Repo repo : repos) {
-            long diff = getDiff(repo, now);
-            if (diff<minTime) {
-                result = repo.full_name;
-                minTime = diff;
-            }
-        }
-        System.out.println("Last modified repo is: " + result);
+        Repo lastModifiedRepo = findLastModifiedRepo(repositories);
+        System.out.println("Last modified repo is: " + lastModifiedRepo.getFull_name());
     }
 
-    private static String getAPIContent(URL url) throws IOException {
+    private static Repo findLastModifiedRepo(List<Repo> repos) {
+        return repos.stream()
+                .max(Comparator.comparing(Repo::getPushed_at))
+                .orElseThrow(NullPointerException::new);
+    }
+
+    private static String getContent() throws IOException {
+        URL url = new URL(ALLEGRO_REPOS_GITHUB_URL);
         HttpURLConnection con = (HttpURLConnection) url.openConnection();
         con.setRequestMethod("GET");
         con.connect();
@@ -48,20 +43,8 @@ public class Main {
         return content.toString();
     }
 
-    private static List<Repo> JSONtoObjectList(String content) throws IOException {
+    private static List<Repo> convertContentToRepoList(String content) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.readValue( content, objectMapper.getTypeFactory().constructCollectionType(List.class, Repo.class));
-    }
-
-    private static LocalDateTime getRepoModDate(Repo repo){
-        String secondDate = repo.pushed_at;
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        return LocalDateTime.parse(secondDate, formatter);
-    }
-
-    private static long getDiff(Repo repo, LocalDateTime now){
-        LocalDateTime modificationDate = getRepoModDate(repo);
-        Duration duration = Duration.between(now, modificationDate);
-        return Math.abs(duration.getSeconds());
+        return objectMapper.readValue(content, objectMapper.getTypeFactory().constructCollectionType(List.class, Repo.class));
     }
 }
